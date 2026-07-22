@@ -45,7 +45,7 @@ function App() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(rest))
   }, [watermarkSettings])
 
-  // 全局粘贴：剪贴板有图片就直接添加
+  // 全局粘贴：剪贴板有图片就直接添加；如果是图片 URL 则下载后添加
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
       const target = e.target as HTMLElement
@@ -55,10 +55,13 @@ function App() {
       if (!items) return
 
       const imageFiles: File[] = []
+      let urlText = ''
       for (let i = 0; i < items.length; i++) {
         if (items[i].type.startsWith('image/')) {
           const blob = items[i].getAsFile()
           if (blob) imageFiles.push(blob)
+        } else if (items[i].type === 'text/plain') {
+          items[i].getAsString((s) => { urlText = s })
         }
       }
 
@@ -69,6 +72,33 @@ function App() {
           setSelectedImageIndex(newImages.length - 1)
           return newImages
         })
+        return
+      }
+
+      // 处理图片 URL
+      if (urlText) {
+        const trimmed = urlText.trim()
+        if (/^https?:\/\/.+\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(trimmed)) {
+          e.preventDefault()
+          fetch(trimmed)
+            .then((res) => {
+              if (!res.ok) throw new Error('fetch failed')
+              return res.blob()
+            })
+            .then((blob) => {
+              if (!blob.type.startsWith('image/')) return
+              const fileName = trimmed.split('/').pop()?.split('?')[0] || 'pasted-image'
+              const file = new File([blob], fileName, { type: blob.type })
+              setImages((prev) => {
+                const newImages = [...prev, file]
+                setSelectedImageIndex(newImages.length - 1)
+                return newImages
+              })
+            })
+            .catch(() => {
+              // 静默失败，用户可手动下载
+            })
+        }
       }
     }
 
