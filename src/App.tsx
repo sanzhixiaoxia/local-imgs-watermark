@@ -90,13 +90,20 @@ function App() {
           // 放宽匹配：只要是以 http/https 开头的 URL 都尝试加载
           if (/^https?:\/\/.+/i.test(trimmed)) {
             e.preventDefault()
-            // 使用 fetch 下载图片为本地 blob，避免跨域 canvas 污染
-            fetch(trimmed)
-              .then((res) => {
-                if (!res.ok) throw new Error(`HTTP ${res.status}`)
-                return res.blob()
-              })
-              .then((blob) => {
+            // 使用 img 标签加载，设置 crossOrigin 以支持 canvas 导出
+            // referrerPolicy='no-referrer' 阻止发送 Referer，绕过微信防盗链
+            const img = new Image()
+            img.crossOrigin = 'anonymous'
+            img.referrerPolicy = 'no-referrer'
+            img.onload = () => {
+              const canvas = document.createElement('canvas')
+              canvas.width = img.naturalWidth
+              canvas.height = img.naturalHeight
+              const ctx = canvas.getContext('2d')
+              if (!ctx) return
+              ctx.drawImage(img, 0, 0)
+              canvas.toBlob((blob) => {
+                if (!blob) return
                 const fileName = trimmed.split('/').pop()?.split('?')[0] || 'pasted-image.png'
                 const file = new File([blob], fileName, { type: blob.type })
                 setImages((prev) => {
@@ -104,31 +111,12 @@ function App() {
                   setSelectedImageIndex(newImages.length - 1)
                   return newImages
                 })
-              })
-              .catch(() => {
-                // fetch 失败（如 CORS），降级为 img 标签加载
-                const img = new Image()
-                img.crossOrigin = 'anonymous'
-                img.onload = () => {
-                  const canvas = document.createElement('canvas')
-                  canvas.width = img.naturalWidth
-                  canvas.height = img.naturalHeight
-                  const ctx = canvas.getContext('2d')
-                  if (!ctx) return
-                  ctx.drawImage(img, 0, 0)
-                  canvas.toBlob((blob) => {
-                    if (!blob) return
-                    const fileName = trimmed.split('/').pop()?.split('?')[0] || 'pasted-image.png'
-                    const file = new File([blob], fileName, { type: blob.type })
-                    setImages((prev) => {
-                      const newImages = [...prev, file]
-                      setSelectedImageIndex(newImages.length - 1)
-                      return newImages
-                    })
-                  }, 'image/png')
-                }
-                img.src = trimmed
-              })
+              }, 'image/png')
+            }
+            img.onerror = () => {
+              // 静默失败
+            }
+            img.src = trimmed
           }
         }
       })
