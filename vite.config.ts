@@ -4,6 +4,7 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  base: '/local-imgs-watermark/',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
