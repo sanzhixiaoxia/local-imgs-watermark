@@ -21,6 +21,109 @@ const DEFAULT_SETTINGS: WatermarkSettings = {
 
 const STORAGE_KEY = 'watermark-settings'
 
+// 已知有 CORS 限制的域名（加载图片时需要通过代理）
+const CORS_RESTRICTED_DOMAINS = [
+  'mmbiz.qpic.cn',
+  'mmbiz.qlogo.cn',
+  'mp.weixin.qq.com',
+]
+
+function isCorsRestrictedDomain(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname
+    return CORS_RESTRICTED_DOMAINS.some(
+      (d) => hostname === d || hostname.endsWith('.' + d),
+    )
+  } catch {
+    return false
+  }
+}
+
+function getProxyUrl(originalUrl: string): string {
+  const base = import.meta.env.BASE_URL || '/'
+  return `${base}api/image-proxy?url=${encodeURIComponent(originalUrl)}`
+}
+
+/** 将图片 blob 转为 File 对象 */
+function imageUrlToFile(blob: Blob, sourceUrl: string): File {
+  const fileName =
+    sourceUrl.split('/').pop()?.split('?')[0] || 'pasted-image.png'
+  return new File([blob], fileName, { type: blob.type || 'image/png' })
+}
+
+/** 尝试直接加载（带 crossOrigin），成功时返回 File */
+function tryLoadDirect(url: string): Promise<File | null> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.referrerPolicy = 'no-referrer'
+
+    const done = (file: File | null) => {
+      img.removeEventListener('load', onLoad)
+      img.removeEventListener('error', onError)
+      resolve(file)
+    }
+
+    const onLoad = () => {
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = img.naturalWidth
+        canvas.height = img.naturalHeight
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return done(null)
+        ctx.drawImage(img, 0, 0)
+        canvas.toBlob(
+          (blob) => {
+            done(blob ? imageUrlToFile(blob, url) : null)
+          },
+          'image/png',
+        )
+      } catch {
+        done(null)
+      }
+    }
+
+    const onError = () => done(null)
+
+    img.addEventListener('load', onLoad)
+    img.addEventListener('error', onError)
+    img.src = url
+  })
+}
+
+/** 通过本地代理加载图片 */
+async function loadViaProxy(url: string): Promise<File | null> {
+  try {
+    const proxyUrl = getProxyUrl(url)
+    const response = await fetch(proxyUrl, {
+      headers: {
+        Referer: new URL(url).origin,
+      },
+    })
+    if (!response.ok) return null
+    const blob = await response.blob()
+    return imageUrlToFile(blob, url)
+  } catch {
+    return null
+  }
+}
+
+/** 加载图片 URL（智能选择直接加载或代理加载） */
+async function loadImageFromUrl(url: string): Promise<File | null> {
+  // 1. 已知 CORS 受限域名：优先代理
+  if (isCorsRestrictedDomain(url)) {
+    const proxyResult = await loadViaProxy(url)
+    if (proxyResult) return proxyResult
+  }
+
+  // 2. 尝试直接加载（带 crossOrigin）
+  const directResult = await tryLoadDirect(url)
+  if (directResult) return directResult
+
+  // 3. 直接加载失败，尝试代理
+  return loadViaProxy(url)
+}
+
 function loadSettings(): WatermarkSettings {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
@@ -90,33 +193,15 @@ function App() {
           // 放宽匹配：只要是以 http/https 开头的 URL 都尝试加载
           if (/^https?:\/\/.+/i.test(trimmed)) {
             e.preventDefault()
-            // 使用 img 标签加载，设置 crossOrigin 以支持 canvas 导出
-            // referrerPolicy='no-referrer' 阻止发送 Referer，绕过微信防盗链
-            const img = new Image()
-            img.crossOrigin = 'anonymous'
-            img.referrerPolicy = 'no-referrer'
-            img.onload = () => {
-              const canvas = document.createElement('canvas')
-              canvas.width = img.naturalWidth
-              canvas.height = img.naturalHeight
-              const ctx = canvas.getContext('2d')
-              if (!ctx) return
-              ctx.drawImage(img, 0, 0)
-              canvas.toBlob((blob) => {
-                if (!blob) return
-                const fileName = trimmed.split('/').pop()?.split('?')[0] || 'pasted-image.png'
-                const file = new File([blob], fileName, { type: blob.type })
+            loadImageFromUrl(trimmed).then((file) => {
+              if (file) {
                 setImages((prev) => {
                   const newImages = [...prev, file]
                   setSelectedImageIndex(newImages.length - 1)
                   return newImages
                 })
-              }, 'image/png')
-            }
-            img.onerror = () => {
-              // 静默失败
-            }
-            img.src = trimmed
+              }
+            })
           }
         }
       })
