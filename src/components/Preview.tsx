@@ -6,11 +6,10 @@ import { renderWatermark } from '../utils/watermark'
 interface PreviewProps {
   images: File[]
   selectedIndex: number
-  onSelectIndex: (index: number) => void
   watermarkSettings: WatermarkSettings
 }
 
-export default function Preview({ images, selectedIndex, onSelectIndex, watermarkSettings }: PreviewProps) {
+export default function Preview({ images, selectedIndex, watermarkSettings }: PreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [copied, setCopied] = useState(false)
 
@@ -35,10 +34,32 @@ export default function Preview({ images, selectedIndex, onSelectIndex, watermar
   const handleCopy = async () => {
     if (!canvasRef.current) return
     try {
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvasRef.current!.toBlob(resolve, 'image/png')
-      )
-      if (!blob) return
+      // 尝试从画布导出 blob
+      let blob: Blob | null = null
+      try {
+        blob = await new Promise<Blob | null>((resolve) =>
+          canvasRef.current!.toBlob(resolve, 'image/png')
+        )
+      } catch (canvasError) {
+        // 画布被跨域图片污染，无法导出
+        console.warn('画布被污染，尝试直接下载原图')
+      }
+      
+      if (!blob) {
+        // 如果画布导出失败，尝试直接下载外部图片
+        const selectedImage = images[selectedIndex]
+        const imageUrl = (selectedImage as any).imageUrl
+        if (imageUrl) {
+          const a = document.createElement('a')
+          a.href = imageUrl
+          a.download = 'image.png'
+          a.target = '_blank'
+          a.click()
+          alert('由于浏览器安全限制，无法复制带水印的图片。已为您下载原图，可手动添加水印')
+          return
+        }
+        return
+      }
 
       // 尝试 Clipboard API
       if (navigator.clipboard && typeof ClipboardItem !== 'undefined') {
@@ -60,24 +81,39 @@ export default function Preview({ images, selectedIndex, onSelectIndex, watermar
         canvas.width = img.width
         canvas.height = img.height
         const ctx = canvas.getContext('2d')
-        ctx!.drawImage(img, 0, 0)
+        if (!ctx) return
+        ctx.drawImage(img, 0, 0)
 
-        canvas.toBlob(async (b) => {
-          if (!b) return
-          try {
-            await navigator.clipboard.write([new ClipboardItem({ 'image/png': b })])
-            setCopied(true)
-            setTimeout(() => setCopied(false), 2000)
-          } catch {
-            // 最终降级：直接下载图片
-            const a = document.createElement('a')
-            a.href = url
-            a.download = 'watermarked.png'
-            a.click()
-            alert('浏览器不支持复制图片，已为您下载图片，可手动复制')
-          }
+        try {
+          canvas.toBlob(async (b) => {
+            if (!b) return
+            try {
+              await navigator.clipboard.write([new ClipboardItem({ 'image/png': b })])
+              setCopied(true)
+              setTimeout(() => setCopied(false), 2000)
+            } catch {
+              // 最终降级：直接下载图片
+              const a = document.createElement('a')
+              a.href = url
+              a.download = 'watermarked.png'
+              a.click()
+              alert('浏览器不支持复制图片，已为您下载图片，可手动复制')
+            }
+            URL.revokeObjectURL(url)
+          }, 'image/png')
+        } catch {
+          // 降级画布也被污染，直接下载
+          const a = document.createElement('a')
+          a.href = url
+          a.download = 'watermarked.png'
+          a.click()
           URL.revokeObjectURL(url)
-        }, 'image/png')
+          alert('由于浏览器安全限制，已为您下载图片')
+        }
+      }
+      img.onerror = () => {
+        URL.revokeObjectURL(url)
+        alert('图片加载失败')
       }
       img.src = url
     } catch (err) {

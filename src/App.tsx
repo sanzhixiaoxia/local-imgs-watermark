@@ -181,7 +181,6 @@ function App() {
           <Preview
             images={images}
             selectedIndex={selectedImageIndex}
-            onSelectIndex={setSelectedImageIndex}
             watermarkSettings={watermarkSettings}
           />
         </div>
