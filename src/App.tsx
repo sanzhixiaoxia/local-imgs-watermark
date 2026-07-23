@@ -56,12 +56,19 @@ function App() {
 
       const imageFiles: File[] = []
       let urlText = ''
+      const textPromises: Promise<void>[] = []
+      
       for (let i = 0; i < items.length; i++) {
         if (items[i].type.startsWith('image/')) {
           const blob = items[i].getAsFile()
           if (blob) imageFiles.push(blob)
-        } else if (items[i].type === 'text/plain') {
-          items[i].getAsString((s) => { urlText = s })
+        } else if (items[i].type === 'text/plain' || items[i].type === 'text/html') {
+          textPromises.push(new Promise((resolve) => {
+            items[i].getAsString((s) => {
+              if (!urlText) urlText = s
+              resolve()
+            })
+          }))
         }
       }
 
@@ -75,53 +82,56 @@ function App() {
         return
       }
 
-      // 处理图片 URL（支持微信图片等无扩展名的 URL）
-      if (urlText) {
-        const trimmed = urlText.trim()
-        // 放宽匹配：只要是以 http/https 开头的 URL 都尝试加载
-        if (/^https?:\/\/.+/i.test(trimmed)) {
-          e.preventDefault()
-          // 使用 fetch 下载图片为本地 blob，避免跨域 canvas 污染
-          fetch(trimmed)
-            .then((res) => {
-              if (!res.ok) throw new Error(`HTTP ${res.status}`)
-              return res.blob()
-            })
-            .then((blob) => {
-              const fileName = trimmed.split('/').pop()?.split('?')[0] || 'pasted-image.png'
-              const file = new File([blob], fileName, { type: blob.type })
-              setImages((prev) => {
-                const newImages = [...prev, file]
-                setSelectedImageIndex(newImages.length - 1)
-                return newImages
+      // 等待异步获取文本完成
+      Promise.all(textPromises).then(() => {
+        // 处理图片 URL（支持微信图片等无扩展名的 URL）
+        if (urlText) {
+          const trimmed = urlText.trim()
+          // 放宽匹配：只要是以 http/https 开头的 URL 都尝试加载
+          if (/^https?:\/\/.+/i.test(trimmed)) {
+            e.preventDefault()
+            // 使用 fetch 下载图片为本地 blob，避免跨域 canvas 污染
+            fetch(trimmed)
+              .then((res) => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`)
+                return res.blob()
               })
-            })
-            .catch(() => {
-              // fetch 失败（如 CORS），降级为 img 标签加载
-              const img = new Image()
-              img.crossOrigin = 'anonymous'
-              img.onload = () => {
-                const canvas = document.createElement('canvas')
-                canvas.width = img.naturalWidth
-                canvas.height = img.naturalHeight
-                const ctx = canvas.getContext('2d')
-                if (!ctx) return
-                ctx.drawImage(img, 0, 0)
-                canvas.toBlob((blob) => {
-                  if (!blob) return
-                  const fileName = trimmed.split('/').pop()?.split('?')[0] || 'pasted-image.png'
-                  const file = new File([blob], fileName, { type: blob.type })
-                  setImages((prev) => {
-                    const newImages = [...prev, file]
-                    setSelectedImageIndex(newImages.length - 1)
-                    return newImages
-                  })
-                }, 'image/png')
-              }
-              img.src = trimmed
-            })
+              .then((blob) => {
+                const fileName = trimmed.split('/').pop()?.split('?')[0] || 'pasted-image.png'
+                const file = new File([blob], fileName, { type: blob.type })
+                setImages((prev) => {
+                  const newImages = [...prev, file]
+                  setSelectedImageIndex(newImages.length - 1)
+                  return newImages
+                })
+              })
+              .catch(() => {
+                // fetch 失败（如 CORS），降级为 img 标签加载
+                const img = new Image()
+                img.crossOrigin = 'anonymous'
+                img.onload = () => {
+                  const canvas = document.createElement('canvas')
+                  canvas.width = img.naturalWidth
+                  canvas.height = img.naturalHeight
+                  const ctx = canvas.getContext('2d')
+                  if (!ctx) return
+                  ctx.drawImage(img, 0, 0)
+                  canvas.toBlob((blob) => {
+                    if (!blob) return
+                    const fileName = trimmed.split('/').pop()?.split('?')[0] || 'pasted-image.png'
+                    const file = new File([blob], fileName, { type: blob.type })
+                    setImages((prev) => {
+                      const newImages = [...prev, file]
+                      setSelectedImageIndex(newImages.length - 1)
+                      return newImages
+                    })
+                  }, 'image/png')
+                }
+                img.src = trimmed
+              })
+          }
         }
-      }
+      })
     }
 
     window.addEventListener('paste', handlePaste)
