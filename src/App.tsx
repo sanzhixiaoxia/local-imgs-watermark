@@ -81,9 +81,8 @@ function App() {
         // 放宽匹配：只要是以 http/https 开头的 URL 都尝试加载
         if (/^https?:\/\/.+/i.test(trimmed)) {
           e.preventDefault()
-          // 使用 img 标签加载，避免 CORS 问题
+          // 使用 img 标签加载，不设置 crossOrigin 以避免 canvas 污染
           const img = new Image()
-          img.crossOrigin = 'anonymous'
           img.onload = () => {
             // 创建 canvas 并绘制图片
             const canvas = document.createElement('canvas')
