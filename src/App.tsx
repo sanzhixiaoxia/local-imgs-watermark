@@ -75,29 +75,41 @@ function App() {
         return
       }
 
-      // 处理图片 URL
+      // 处理图片 URL（支持微信图片等无扩展名的 URL）
       if (urlText) {
         const trimmed = urlText.trim()
-        if (/^https?:\/\/.+\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(trimmed)) {
+        // 放宽匹配：只要是以 http/https 开头的 URL 都尝试加载
+        if (/^https?:\/\/.+/i.test(trimmed)) {
           e.preventDefault()
-          fetch(trimmed)
-            .then((res) => {
-              if (!res.ok) throw new Error('fetch failed')
-              return res.blob()
-            })
-            .then((blob) => {
-              if (!blob.type.startsWith('image/')) return
-              const fileName = trimmed.split('/').pop()?.split('?')[0] || 'pasted-image'
+          // 使用 img 标签加载，避免 CORS 问题
+          const img = new Image()
+          img.crossOrigin = 'anonymous'
+          img.onload = () => {
+            // 创建 canvas 并绘制图片
+            const canvas = document.createElement('canvas')
+            canvas.width = img.naturalWidth
+            canvas.height = img.naturalHeight
+            const ctx = canvas.getContext('2d')
+            if (!ctx) return
+            
+            ctx.drawImage(img, 0, 0)
+            
+            // 转换为 blob
+            canvas.toBlob((blob) => {
+              if (!blob) return
+              const fileName = trimmed.split('/').pop()?.split('?')[0] || 'pasted-image.png'
               const file = new File([blob], fileName, { type: blob.type })
               setImages((prev) => {
                 const newImages = [...prev, file]
                 setSelectedImageIndex(newImages.length - 1)
                 return newImages
               })
-            })
-            .catch(() => {
-              // 静默失败，用户可手动下载
-            })
+            }, 'image/png')
+          }
+          img.onerror = () => {
+            // 静默失败，用户可手动下载
+          }
+          img.src = trimmed
         }
       }
     }
