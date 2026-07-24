@@ -1,6 +1,6 @@
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
-import { WatermarkSettings } from '../types'
+import { WatermarkSettings, OutputFormat } from '../types'
 
 export async function renderWatermark(
   ctx: CanvasRenderingContext2D,
@@ -159,6 +159,19 @@ export function resolveOutputMimeForSource(sourceType: string): string {
   return 'image/png'
 }
 
+// 强制指定的导出格式对应的 MIME
+const FORCED_OUTPUT_MIME: Record<Exclude<OutputFormat, 'original'>, string> = {
+  png: 'image/png',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+}
+
+// 综合“用户指定格式”与“原图格式”得出最终导出 MIME
+export function resolveOutputMime(settings: WatermarkSettings, sourceType: string): string {
+  if (settings.outputFormat !== 'original') return FORCED_OUTPUT_MIME[settings.outputFormat]
+  return resolveOutputMimeForSource(sourceType)
+}
+
 // 依据 MIME 推导下载文件扩展名
 export function extensionFromMime(mime: string): string {
   switch (mime.toLowerCase()) {
@@ -203,15 +216,20 @@ export async function exportImages(images: File[], settings: WatermarkSettings) 
     canvas.width = img.width
     canvas.height = img.height
 
+    // 导出格式：用户指定优先，否则保持原图格式
+    const outputMime = resolveOutputMime(settings, image.type)
+
     // JPEG 不支持透明，先铺白底再绘制，避免透明区域变黑
-    const outputMime = resolveOutputMimeForSource(image.type)
     if (outputMime === 'image/jpeg') {
       ctx.fillStyle = '#ffffff'
       ctx.fillRect(0, 0, canvas.width, canvas.height)
     }
 
     ctx.drawImage(img, 0, 0)
-    await renderWatermark(ctx, canvas.width, canvas.height, settings)
+    // 勾选了“带水印”才叠加水印
+    if (settings.outputWithWatermark) {
+      await renderWatermark(ctx, canvas.width, canvas.height, settings)
+    }
 
     const blob = await new Promise<Blob>((resolve) => {
       canvas.toBlob((blob) => resolve(blob!), outputMime)

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Copy, Check } from 'lucide-react'
 import { WatermarkSettings } from '../types'
-import { renderWatermark, extensionFromMime, resolveOutputMimeForSource } from '../utils/watermark'
+import { renderWatermark, extensionFromMime, resolveOutputMime } from '../utils/watermark'
 import { useToast } from './Toast'
 
 interface PreviewProps {
@@ -32,8 +32,20 @@ export default function Preview({ images, selectedIndex, watermarkSettings }: Pr
       liveCanvas.width = img.width
       liveCanvas.height = img.height
       liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height)
+
+      const selected = images[selectedIndex]
+      const outputMime = resolveOutputMime(watermarkSettings, selected?.type || '')
+      // JPEG 不支持透明，预览时也铺白底，所见即所得
+      if (outputMime === 'image/jpeg') {
+        liveCtx.fillStyle = '#ffffff'
+        liveCtx.fillRect(0, 0, liveCanvas.width, liveCanvas.height)
+      }
+
       liveCtx.drawImage(img, 0, 0)
-      await renderWatermark(liveCtx, liveCanvas.width, liveCanvas.height, watermarkSettings)
+      // 勾选了“带水印”才叠加水印
+      if (watermarkSettings.outputWithWatermark) {
+        await renderWatermark(liveCtx, liveCanvas.width, liveCanvas.height, watermarkSettings)
+      }
     }
     img.src = URL.createObjectURL(images[selectedIndex])
   }, [images, selectedIndex, watermarkSettings])
@@ -41,8 +53,8 @@ export default function Preview({ images, selectedIndex, watermarkSettings }: Pr
   const handleCopy = async () => {
     if (!canvasRef.current) return
     const selectedImage = images[selectedIndex]
-    // 按原图格式导出（保留 png/jpeg/webp，其余回退 png）
-    const outputMime = resolveOutputMimeForSource(selectedImage.type)
+    // 按设置决定导出格式（保持原格式 / 强制 png·jpeg·webp），其余回退 png
+    const outputMime = resolveOutputMime(watermarkSettings, selectedImage.type)
     // 剪贴板仅支持 png / webp，复制时优先用 webp 以减小体积
     const clipboardMime = outputMime === 'image/jpeg' ? 'image/png' : outputMime
     const downloadExt = extensionFromMime(outputMime)

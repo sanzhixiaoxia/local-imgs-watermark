@@ -1,3 +1,5 @@
+export type OutputFormat = 'original' | 'png' | 'jpeg' | 'webp'
+
 export interface WatermarkSettings {
   type: 'text' | 'image'
   text: string
@@ -12,4 +14,8 @@ export interface WatermarkSettings {
   tileSpacingX: number
   tileSpacingY: number
   watermarkImage: string | null
+  /** 导出图片格式：保持原格式 / 强制转换为 png·jpeg·webp */
+  outputFormat: OutputFormat
+  /** 导出时是否带水印 */
+  outputWithWatermark: boolean
 }
