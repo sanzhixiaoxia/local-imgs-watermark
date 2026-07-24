@@ -34,8 +34,8 @@ function renderTextWatermark(
   const { x, y } = calculatePosition(width, height, settings)
 
   if (settings.tile) {
-    const stepX = settings.fontSize * settings.text.length * 1.5
-    const stepY = settings.fontSize * 2
+    const stepX = settings.fontSize * settings.text.length * settings.tileSpacingX
+    const stepY = settings.fontSize * settings.tileSpacingY
     for (let i = 0; i < width + stepX; i += stepX) {
       for (let j = 0; j < height + stepY; j += stepY) {
         drawText(ctx, settings.text, i, j, settings.rotation)
@@ -72,8 +72,8 @@ async function renderImageWatermark(
   const { x, y } = calculatePosition(width, height, settings)
 
   if (settings.tile) {
-    const stepX = watermarkWidth * 1.5
-    const stepY = watermarkHeight * 1.5
+    const stepX = watermarkWidth * settings.tileSpacingX
+    const stepY = watermarkHeight * settings.tileSpacingY
     for (let i = 0; i < width + stepX; i += stepX) {
       for (let j = 0; j < height + stepY; j += stepY) {
         drawImage(ctx, img, i - watermarkWidth / 2, j - watermarkHeight / 2, watermarkWidth, watermarkHeight, settings.rotation)

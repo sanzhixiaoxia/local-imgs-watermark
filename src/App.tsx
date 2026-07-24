@@ -4,6 +4,7 @@ import ImageUpload from './components/ImageUpload'
 import WatermarkConfig from './components/WatermarkConfig'
 import Preview from './components/Preview'
 import { WatermarkSettings } from './types'
+import { useToast } from './components/Toast'
 
 const DEFAULT_SETTINGS: WatermarkSettings = {
   type: 'text',
@@ -144,6 +145,7 @@ function App() {
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0)
   const [watermarkSettings, setWatermarkSettings] = useState<WatermarkSettings>(loadSettings)
   const [isDragging, setIsDragging] = useState(false)
+  const { showToast } = useToast()
 
   useEffect(() => {
     const { watermarkImage: _, ...rest } = watermarkSettings
@@ -184,6 +186,7 @@ function App() {
           setSelectedImageIndex(newImages.length - 1)
           return newImages
         })
+        showToast('粘贴成功', 'success')
         return
       }
 
@@ -202,6 +205,9 @@ function App() {
                   setSelectedImageIndex(newImages.length - 1)
                   return newImages
                 })
+                showToast('转换成功', 'success')
+              } else {
+                showToast('图片加载失败，请检查链接', 'error')
               }
             })
           }

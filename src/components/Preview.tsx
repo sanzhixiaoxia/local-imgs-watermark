@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Copy, Check } from 'lucide-react'
 import { WatermarkSettings } from '../types'
 import { renderWatermark } from '../utils/watermark'
+import { useToast } from './Toast'
 
 interface PreviewProps {
   images: File[]
@@ -12,6 +13,7 @@ interface PreviewProps {
 export default function Preview({ images, selectedIndex, watermarkSettings }: PreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [copied, setCopied] = useState(false)
+  const { showToast } = useToast()
 
   useEffect(() => {
     if (images.length === 0 || !canvasRef.current) return
@@ -55,7 +57,7 @@ export default function Preview({ images, selectedIndex, watermarkSettings }: Pr
           a.download = 'image.png'
           a.target = '_blank'
           a.click()
-          alert('由于浏览器安全限制，无法复制带水印的图片。已为您下载原图，可手动添加水印')
+          showToast('由于浏览器安全限制，已下载原图，可手动添加水印', 'error')
           return
         }
         return
@@ -67,6 +69,7 @@ export default function Preview({ images, selectedIndex, watermarkSettings }: Pr
           await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
           setCopied(true)
           setTimeout(() => setCopied(false), 2000)
+          showToast('复制成功', 'success')
           return
         } catch {
           // Clipboard API 失败，尝试降级方案
@@ -91,13 +94,14 @@ export default function Preview({ images, selectedIndex, watermarkSettings }: Pr
               await navigator.clipboard.write([new ClipboardItem({ 'image/png': b })])
               setCopied(true)
               setTimeout(() => setCopied(false), 2000)
+              showToast('复制成功', 'success')
             } catch {
               // 最终降级：直接下载图片
               const a = document.createElement('a')
               a.href = url
               a.download = 'watermarked.png'
               a.click()
-              alert('浏览器不支持复制图片，已为您下载图片，可手动复制')
+              showToast('浏览器不支持复制图片，已为您下载图片', 'error')
             }
             URL.revokeObjectURL(url)
           }, 'image/png')
@@ -108,17 +112,17 @@ export default function Preview({ images, selectedIndex, watermarkSettings }: Pr
           a.download = 'watermarked.png'
           a.click()
           URL.revokeObjectURL(url)
-          alert('由于浏览器安全限制，已为您下载图片')
+          showToast('由于浏览器安全限制，已为您下载图片', 'error')
         }
       }
       img.onerror = () => {
         URL.revokeObjectURL(url)
-        alert('图片加载失败')
+        showToast('图片加载失败', 'error')
       }
       img.src = url
     } catch (err) {
       console.error('复制失败:', err)
-      alert('复制失败，请检查浏览器权限')
+      showToast('复制失败，请检查浏览器权限', 'error')
     }
   }
 
