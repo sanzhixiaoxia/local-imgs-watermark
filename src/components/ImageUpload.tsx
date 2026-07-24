@@ -57,7 +57,7 @@ export default function ImageUpload({ images, onChange, selectedIndex, onSelectI
         <Upload className="text-gray-400" size={24} />
         <div className="text-left">
           <p className="text-sm text-gray-600">拖拽、点击或粘贴上传图片</p>
-          <p className="text-xs text-gray-400">支持 JPG、PNG、WebP</p>
+          <p className="text-xs text-gray-400">支持 JPG、PNG、WebP、GIF、BMP、AVIF 等</p>
         </div>
         <input
           ref={fileInputRef}

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Copy, Check } from 'lucide-react'
 import { WatermarkSettings } from '../types'
-import { renderWatermark } from '../utils/watermark'
+import { renderWatermark, extensionFromMime, resolveOutputMimeForSource } from '../utils/watermark'
 import { useToast } from './Toast'
 
 interface PreviewProps {
@@ -40,12 +40,20 @@ export default function Preview({ images, selectedIndex, watermarkSettings }: Pr
 
   const handleCopy = async () => {
     if (!canvasRef.current) return
+    const selectedImage = images[selectedIndex]
+    // 按原图格式导出（保留 png/jpeg/webp，其余回退 png）
+    const outputMime = resolveOutputMimeForSource(selectedImage.type)
+    // 剪贴板仅支持 png / webp，复制时优先用 webp 以减小体积
+    const clipboardMime = outputMime === 'image/jpeg' ? 'image/png' : outputMime
+    const downloadExt = extensionFromMime(outputMime)
+    const downloadName = (selectedImage.name.replace(/\.[^./\\]+$/, '') || 'watermarked') + '.' + downloadExt
+
     try {
       // 尝试从画布导出 blob
       let blob: Blob | null = null
       try {
         blob = await new Promise<Blob | null>((resolve) =>
-          canvasRef.current!.toBlob(resolve, 'image/png')
+          canvasRef.current!.toBlob(resolve, outputMime)
         )
       } catch (canvasError) {
         // 画布被跨域图片污染，无法导出
@@ -54,12 +62,11 @@ export default function Preview({ images, selectedIndex, watermarkSettings }: Pr
       
       if (!blob) {
         // 如果画布导出失败，尝试直接下载外部图片
-        const selectedImage = images[selectedIndex]
         const imageUrl = (selectedImage as any).imageUrl
         if (imageUrl) {
           const a = document.createElement('a')
           a.href = imageUrl
-          a.download = 'image.png'
+          a.download = downloadName
           a.target = '_blank'
           a.click()
           showToast('由于浏览器安全限制，已下载原图，可手动添加水印', 'error')
@@ -68,10 +75,10 @@ export default function Preview({ images, selectedIndex, watermarkSettings }: Pr
         return
       }
 
-      // 尝试 Clipboard API
+      // 尝试 Clipboard API（png / webp）
       if (navigator.clipboard && typeof ClipboardItem !== 'undefined') {
         try {
-          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+          await navigator.clipboard.write([new ClipboardItem({ [clipboardMime]: blob })])
           setCopied(true)
           setTimeout(() => setCopied(false), 2000)
           showToast('复制成功', 'success')
@@ -96,7 +103,7 @@ export default function Preview({ images, selectedIndex, watermarkSettings }: Pr
           canvas.toBlob(async (b) => {
             if (!b) return
             try {
-              await navigator.clipboard.write([new ClipboardItem({ 'image/png': b })])
+              await navigator.clipboard.write([new ClipboardItem({ [clipboardMime]: b })])
               setCopied(true)
               setTimeout(() => setCopied(false), 2000)
               showToast('复制成功', 'success')
@@ -104,17 +111,17 @@ export default function Preview({ images, selectedIndex, watermarkSettings }: Pr
               // 最终降级：直接下载图片
               const a = document.createElement('a')
               a.href = url
-              a.download = 'watermarked.png'
+              a.download = downloadName
               a.click()
               showToast('浏览器不支持复制图片，已为您下载图片', 'error')
             }
             URL.revokeObjectURL(url)
-          }, 'image/png')
+          }, outputMime)
         } catch {
           // 降级画布也被污染，直接下载
           const a = document.createElement('a')
           a.href = url
-          a.download = 'watermarked.png'
+          a.download = downloadName
           a.click()
           URL.revokeObjectURL(url)
           showToast('由于浏览器安全限制，已为您下载图片', 'error')

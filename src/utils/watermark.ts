@@ -150,6 +150,44 @@ function calculatePosition(width: number, height: number, settings: WatermarkSet
   return { x, y }
 }
 
+// 根据原图 MIME 选择画布导出格式（主流浏览器均支持 png/jpeg/webp）
+export function resolveOutputMimeForSource(sourceType: string): string {
+  const t = sourceType.toLowerCase()
+  if (t === 'image/jpeg' || t === 'image/jpg') return 'image/jpeg'
+  if (t === 'image/webp') return 'image/webp'
+  // 其余（png / gif / bmp / avif / svg 等）统一以 png 导出，保留透明通道
+  return 'image/png'
+}
+
+// 依据 MIME 推导下载文件扩展名
+export function extensionFromMime(mime: string): string {
+  switch (mime.toLowerCase()) {
+    case 'image/jpeg':
+    case 'image/jpg':
+      return 'jpg'
+    case 'image/webp':
+      return 'webp'
+    case 'image/gif':
+      return 'gif'
+    case 'image/bmp':
+      return 'bmp'
+    case 'image/avif':
+      return 'avif'
+    case 'image/svg+xml':
+      return 'svg'
+    case 'image/png':
+    default:
+      return 'png'
+  }
+}
+
+// 重命名文件，保留原扩展名；若原图无扩展名则按导出格式补上
+function renameWithExtension(name: string, mime: string): string {
+  const ext = extensionFromMime(mime)
+  const base = name.replace(/\.[^./\\]+$/, '')
+  return `${base || 'image'}.${ext}`
+}
+
 export async function exportImages(images: File[], settings: WatermarkSettings) {
   const zip = new JSZip()
 
@@ -165,14 +203,21 @@ export async function exportImages(images: File[], settings: WatermarkSettings) 
     canvas.width = img.width
     canvas.height = img.height
 
+    // JPEG 不支持透明，先铺白底再绘制，避免透明区域变黑
+    const outputMime = resolveOutputMimeForSource(image.type)
+    if (outputMime === 'image/jpeg') {
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+    }
+
     ctx.drawImage(img, 0, 0)
     await renderWatermark(ctx, canvas.width, canvas.height, settings)
 
     const blob = await new Promise<Blob>((resolve) => {
-      canvas.toBlob((blob) => resolve(blob!), 'image/png')
+      canvas.toBlob((blob) => resolve(blob!), outputMime)
     })
 
-    zip.file(image.name, blob)
+    zip.file(renameWithExtension(image.name, outputMime), blob)
   }
 
   const content = await zip.generateAsync({ type: 'blob' })

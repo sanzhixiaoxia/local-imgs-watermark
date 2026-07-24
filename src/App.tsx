@@ -104,6 +104,9 @@ async function loadViaProxy(url: string): Promise<File | null> {
       },
     })
     if (!response.ok) return null
+    // 防止代理端点被 SPA fallback 命中（返回 HTML）时误判为成功
+    const contentType = response.headers.get('content-type') || ''
+    if (!contentType.startsWith('image/')) return null
     const blob = await response.blob()
     return imageUrlToFile(blob, url)
   } catch {
@@ -111,8 +114,29 @@ async function loadViaProxy(url: string): Promise<File | null> {
   }
 }
 
-/** 加载图片 URL（智能选择直接加载或代理加载） */
+/** 将 base64 data URI 转为 File 对象 */
+function dataUriToFile(dataUri: string): File | null {
+  const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(dataUri.trim())
+  if (!match) return null
+  try {
+    const mime = match[1]
+    const binary = atob(match[2])
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    const ext = mime.split('/')[1]?.replace('+xml', '') || 'png'
+    return new File([bytes], `base64-image.${ext}`, { type: mime })
+  } catch {
+    return null
+  }
+}
+
+/** 加载图片 URL（智能选择直接加载或代理加载），也支持 base64 data URI */
 async function loadImageFromUrl(url: string): Promise<File | null> {
+  // base64 data URI：直接解码，不走网络
+  if (url.startsWith('data:image/')) {
+    return dataUriToFile(url)
+  }
+
   // 1. 已知 CORS 受限域名：优先代理
   if (isCorsRestrictedDomain(url)) {
     const proxyResult = await loadViaProxy(url)
@@ -145,7 +169,7 @@ function App() {
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0)
   const [watermarkSettings, setWatermarkSettings] = useState<WatermarkSettings>(loadSettings)
   const [isDragging, setIsDragging] = useState(false)
-  const { showToast } = useToast()
+  const { showToast, showLoading, dismissLoading } = useToast()
 
   useEffect(() => {
     try {
@@ -198,10 +222,12 @@ function App() {
         // 处理图片 URL（支持微信图片等无扩展名的 URL）
         if (urlText) {
           const trimmed = urlText.trim()
-          // 放宽匹配：只要是以 http/https 开头的 URL 都尝试加载
-          if (/^https?:\/\/.+/i.test(trimmed)) {
+          // 支持 http/https 图片链接，以及 base64 data URI
+          if (/^https?:\/\/.+/i.test(trimmed) || trimmed.startsWith('data:image/')) {
             e.preventDefault()
+            const loadingId = showLoading('图片加载中…')
             loadImageFromUrl(trimmed).then((file) => {
+              dismissLoading(loadingId)
               if (file) {
                 setImages((prev) => {
                   const newImages = [...prev, file]
@@ -312,7 +338,7 @@ function App() {
               </svg>
             </div>
             <p className="text-xl font-bold text-gray-800">释放以添加图片</p>
-            <p className="text-sm text-gray-500">支持 JPG、PNG、WebP 格式</p>
+            <p className="text-sm text-gray-500">支持 JPG、PNG、WebP、GIF、BMP、AVIF 等主流格式</p>
           </div>
         </div>
       )}
