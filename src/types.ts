@@ -9,5 +9,7 @@ export interface WatermarkSettings {
   offsetX: number
   offsetY: number
   tile: boolean
+  tileSpacingX: number
+  tileSpacingY: number
   watermarkImage: string | null
 }

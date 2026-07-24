@@ -16,6 +16,8 @@ const DEFAULT_SETTINGS: WatermarkSettings = {
   offsetX: 20,
   offsetY: 20,
   tile: false,
+  tileSpacingX: 1.5,
+  tileSpacingY: 2,
   watermarkImage: null,
 }
 

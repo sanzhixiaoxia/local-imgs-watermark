@@ -31,6 +31,8 @@ const DEFAULT_SETTINGS: WatermarkSettings = {
   offsetX: 20,
   offsetY: 20,
   tile: false,
+  tileSpacingX: 1.5,
+  tileSpacingY: 2,
   watermarkImage: null,
 }
 
@@ -229,6 +231,29 @@ export default function WatermarkConfig({ settings, onChange }: WatermarkConfigP
             />
           </button>
         </div>
+
+        {settings.tile && (
+          <>
+            <SliderInput
+              label="水平间距"
+              value={settings.tileSpacingX}
+              min={0.5}
+              max={3}
+              step={0.1}
+              unit="x"
+              onChange={(val) => handleChange('tileSpacingX', val)}
+            />
+            <SliderInput
+              label="垂直间距"
+              value={settings.tileSpacingY}
+              min={0.5}
+              max={3}
+              step={0.1}
+              unit="x"
+              onChange={(val) => handleChange('tileSpacingY', val)}
+            />
+          </>
+        )}
       </div>
     </div>
   )
