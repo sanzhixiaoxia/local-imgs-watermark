@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react'
+
 interface SliderInputProps {
   label: string
   value: number
@@ -9,6 +11,7 @@ interface SliderInputProps {
 }
 
 export default function SliderInput({ label, value, min, max, step = 1, unit = '', onChange }: SliderInputProps) {
+  const fillPercent = max > min ? ((value - min) / (max - min)) * 100 : 0
   return (
     <div>
       <label className="block text-xs font-medium text-gray-600 mb-0.5">{label}</label>
@@ -20,7 +23,8 @@ export default function SliderInput({ label, value, min, max, step = 1, unit = '
           step={step}
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
-          className="flex-1 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary"
+          className="wm-range flex-1"
+          style={{ ['--wm-fill' as string]: `${fillPercent}%` } as CSSProperties}
         />
         <div className="flex items-center gap-0.5">
           <input

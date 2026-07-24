@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Copy, Check } from 'lucide-react'
+import type { MouseEvent } from 'react'
+import { Copy, Check, Download } from 'lucide-react'
 import { WatermarkSettings } from '../types'
 import { renderWatermark, extensionFromMime, resolveOutputMime } from '../utils/watermark'
 import { useToast } from './Toast'
@@ -13,7 +14,49 @@ interface PreviewProps {
 export default function Preview({ images, selectedIndex, watermarkSettings }: PreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [copied, setCopied] = useState(false)
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
   const { showToast } = useToast()
+
+  const selectedImage = images[selectedIndex]
+  const outputMime = resolveOutputMime(watermarkSettings, selectedImage?.type || '')
+  const formatLabel: Record<string, string> = {
+    'image/jpeg': 'JPEG',
+    'image/webp': 'WebP',
+    'image/png': 'PNG',
+  }
+  const currentFormat = formatLabel[outputMime] ?? 'PNG'
+
+  const handleContextMenu = (e: MouseEvent<HTMLCanvasElement>) => {
+    e.preventDefault()
+    setMenuPos({ x: e.clientX, y: e.clientY })
+  }
+
+  const closeMenu = () => setMenuPos(null)
+
+  const handleDownload = () => {
+    const canvas = canvasRef.current
+    if (!canvas || !selectedImage) return
+    const downloadExt = extensionFromMime(outputMime)
+    const downloadName = (selectedImage.name.replace(/\.[^./\\]+$/, '') || 'watermarked') + '.' + downloadExt
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          showToast('下载失败', 'error')
+          return
+        }
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = downloadName
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(url)
+        showToast('已开始下载', 'success')
+      },
+      outputMime,
+    )
+  }
 
   useEffect(() => {
     if (images.length === 0 || !canvasRef.current) return
@@ -51,103 +94,49 @@ export default function Preview({ images, selectedIndex, watermarkSettings }: Pr
   }, [images, selectedIndex, watermarkSettings])
 
   const handleCopy = async () => {
-    if (!canvasRef.current) return
+    const canvas = canvasRef.current
+    if (!canvas) return
     const selectedImage = images[selectedIndex]
-    // 按设置决定导出格式（保持原格式 / 强制 png·jpeg·webp），其余回退 png
+    // 按设置决定导出格式（保持原格式 / 强制 png·jpeg·webp）
     const outputMime = resolveOutputMime(watermarkSettings, selectedImage.type)
-    // 剪贴板仅支持 png / webp，复制时优先用 webp 以减小体积
+    // 剪贴板仅支持 png / webp，jpeg 复制时降级为 png 位图
     const clipboardMime = outputMime === 'image/jpeg' ? 'image/png' : outputMime
     const downloadExt = extensionFromMime(outputMime)
-    const downloadName = (selectedImage.name.replace(/\.[^./\\]+$/, '') || 'watermarked') + '.' + downloadExt
+    const downloadName =
+      (selectedImage.name.replace(/\.[^./\\]+$/, '') || 'watermarked') + '.' + downloadExt
 
-    try {
-      // 尝试从画布导出 blob
-      let blob: Blob | null = null
-      try {
-        blob = await new Promise<Blob | null>((resolve) =>
-          canvasRef.current!.toBlob(resolve, outputMime)
-        )
-      } catch (canvasError) {
-        // 画布被跨域图片污染，无法导出
-        console.warn('画布被污染，尝试直接下载原图')
-      }
-      
-      if (!blob) {
-        // 如果画布导出失败，尝试直接下载外部图片
-        const imageUrl = (selectedImage as any).imageUrl
-        if (imageUrl) {
-          const a = document.createElement('a')
-          a.href = imageUrl
-          a.download = downloadName
-          a.target = '_blank'
-          a.click()
-          showToast('由于浏览器安全限制，已下载原图，可手动添加水印', 'error')
-          return
-        }
-        return
-      }
-
-      // 尝试 Clipboard API（png / webp）
-      if (navigator.clipboard && typeof ClipboardItem !== 'undefined') {
-        try {
-          await navigator.clipboard.write([new ClipboardItem({ [clipboardMime]: blob })])
-          setCopied(true)
-          setTimeout(() => setCopied(false), 2000)
-          showToast('复制成功', 'success')
-          return
-        } catch {
-          // Clipboard API 失败，尝试降级方案
-        }
-      }
-
-      // 降级方案：创建临时 img 元素，选中后复制
-      const url = URL.createObjectURL(blob)
-      const img = new Image()
-      img.onload = async () => {
-        const canvas = document.createElement('canvas')
-        canvas.width = img.width
-        canvas.height = img.height
-        const ctx = canvas.getContext('2d')
-        if (!ctx) return
-        ctx.drawImage(img, 0, 0)
-
-        try {
-          canvas.toBlob(async (b) => {
-            if (!b) return
-            try {
-              await navigator.clipboard.write([new ClipboardItem({ [clipboardMime]: b })])
-              setCopied(true)
-              setTimeout(() => setCopied(false), 2000)
-              showToast('复制成功', 'success')
-            } catch {
-              // 最终降级：直接下载图片
-              const a = document.createElement('a')
-              a.href = url
-              a.download = downloadName
-              a.click()
-              showToast('浏览器不支持复制图片，已为您下载图片', 'error')
-            }
-            URL.revokeObjectURL(url)
-          }, outputMime)
-        } catch {
-          // 降级画布也被污染，直接下载
-          const a = document.createElement('a')
-          a.href = url
-          a.download = downloadName
-          a.click()
-          URL.revokeObjectURL(url)
-          showToast('由于浏览器安全限制，已为您下载图片', 'error')
-        }
-      }
-      img.onerror = () => {
-        URL.revokeObjectURL(url)
-        showToast('图片加载失败', 'error')
-      }
-      img.src = url
-    } catch (err) {
-      console.error('复制失败:', err)
-      showToast('复制失败，请检查浏览器权限', 'error')
+    // 复制时统一用 clipboardMime 导出，保证 blob 类型与 ClipboardItem 的 key 一致
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, clipboardMime)
+    )
+    if (!blob) {
+      showToast('复制失败，画布无法导出', 'error')
+      return
     }
+
+    // 优先尝试写入剪贴板
+    if (navigator.clipboard && typeof ClipboardItem !== 'undefined') {
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ [clipboardMime]: blob })])
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+        showToast('复制成功', 'success')
+        return
+      } catch {
+        // 剪贴板不可用（无权限/非安全上下文等），降级为下载
+      }
+    }
+
+    // 降级：直接下载图片（按所选输出格式）
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = downloadName
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+    showToast('浏览器不支持复制图片，已为您下载图片', 'error')
   }
 
   if (images.length === 0) {
@@ -178,8 +167,47 @@ export default function Preview({ images, selectedIndex, watermarkSettings }: Pr
         <canvas
           ref={canvasRef}
           className="max-w-full max-h-full object-contain"
+          onContextMenu={handleContextMenu}
         />
       </div>
+
+      {menuPos && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={closeMenu}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              closeMenu()
+            }}
+          />
+          <div
+            className="fixed z-50 min-w-[168px] bg-white rounded-lg shadow-xl border border-gray-100 py-1 text-sm overflow-hidden"
+            style={{ left: menuPos.x, top: menuPos.y }}
+          >
+            <button
+              onClick={() => {
+                handleCopy()
+                closeMenu()
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-primary/10 hover:text-primary transition-colors"
+            >
+              <Copy size={14} />
+              复制图片
+            </button>
+            <button
+              onClick={() => {
+                handleDownload()
+                closeMenu()
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-primary/10 hover:text-primary transition-colors"
+            >
+              <Download size={14} />
+              下载图片（{currentFormat}）
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }

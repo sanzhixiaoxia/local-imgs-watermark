@@ -201,9 +201,14 @@ function renameWithExtension(name: string, mime: string): string {
   return `${base || 'image'}.${ext}`
 }
 
-export async function exportImages(images: File[], settings: WatermarkSettings) {
+export async function exportImages(
+  images: File[],
+  settings: WatermarkSettings,
+  onProgress?: (done: number, total: number) => void,
+) {
   const zip = new JSZip()
 
+  let done = 0
   for (const image of images) {
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')
@@ -236,6 +241,9 @@ export async function exportImages(images: File[], settings: WatermarkSettings) 
     })
 
     zip.file(renameWithExtension(image.name, outputMime), blob)
+
+    done += 1
+    onProgress?.(done, images.length)
   }
 
   const content = await zip.generateAsync({ type: 'blob' })
