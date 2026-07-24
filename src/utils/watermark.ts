@@ -2,7 +2,7 @@ import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import { WatermarkSettings } from '../types'
 
-export function renderWatermark(
+export async function renderWatermark(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
@@ -14,7 +14,7 @@ export function renderWatermark(
   if (settings.type === 'text') {
     renderTextWatermark(ctx, width, height, settings)
   } else if (settings.type === 'image' && settings.watermarkImage) {
-    renderImageWatermark(ctx, width, height, settings)
+    await renderImageWatermark(ctx, width, height, settings)
   }
 
   ctx.restore()
@@ -166,7 +166,7 @@ export async function exportImages(images: File[], settings: WatermarkSettings) 
     canvas.height = img.height
 
     ctx.drawImage(img, 0, 0)
-    renderWatermark(ctx, canvas.width, canvas.height, settings)
+    await renderWatermark(ctx, canvas.width, canvas.height, settings)
 
     const blob = await new Promise<Blob>((resolve) => {
       canvas.toBlob((blob) => resolve(blob!), 'image/png')

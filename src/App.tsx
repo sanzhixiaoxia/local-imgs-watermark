@@ -132,7 +132,7 @@ function loadSettings(): WatermarkSettings {
     const saved = localStorage.getItem(STORAGE_KEY)
     if (saved) {
       const parsed = JSON.parse(saved)
-      return { ...DEFAULT_SETTINGS, ...parsed, watermarkImage: null }
+      return { ...DEFAULT_SETTINGS, ...parsed }
     }
   } catch {
     // ignore
@@ -148,8 +148,11 @@ function App() {
   const { showToast } = useToast()
 
   useEffect(() => {
-    const { watermarkImage: _, ...rest } = watermarkSettings
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(rest))
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(watermarkSettings))
+    } catch {
+      // 水印图片较大时可能超出 localStorage 配额，忽略持久化即可
+    }
   }, [watermarkSettings])
 
   // 全局粘贴：剪贴板有图片就直接添加；如果是图片 URL 则下载后添加

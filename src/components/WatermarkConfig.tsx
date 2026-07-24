@@ -138,6 +138,9 @@ export default function WatermarkConfig({ settings, onChange }: WatermarkConfigP
           {settings.watermarkImage && (
             <img src={settings.watermarkImage} alt="水印" className="mt-1.5 w-full h-16 object-contain border border-gray-200 rounded" />
           )}
+          {!settings.watermarkImage && (
+            <p className="mt-1.5 text-xs text-red-500">请先上传水印图片，否则不会添加任何水印</p>
+          )}
           <input
             ref={fileInputRef}
             type="file"

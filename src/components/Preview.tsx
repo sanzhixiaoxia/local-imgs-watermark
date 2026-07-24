@@ -23,12 +23,17 @@ export default function Preview({ images, selectedIndex, watermarkSettings }: Pr
     if (!ctx) return
 
     const img = new Image()
-    img.onload = () => {
-      canvas.width = img.width
-      canvas.height = img.height
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      ctx.drawImage(img, 0, 0)
-      renderWatermark(ctx, canvas.width, canvas.height, watermarkSettings)
+    img.onload = async () => {
+      // 重新获取最新的 canvas / ctx，避免 React 重渲染后上下文失效
+      const liveCanvas = canvasRef.current
+      if (!liveCanvas) return
+      const liveCtx = liveCanvas.getContext('2d')
+      if (!liveCtx) return
+      liveCanvas.width = img.width
+      liveCanvas.height = img.height
+      liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height)
+      liveCtx.drawImage(img, 0, 0)
+      await renderWatermark(liveCtx, liveCanvas.width, liveCanvas.height, watermarkSettings)
     }
     img.src = URL.createObjectURL(images[selectedIndex])
   }, [images, selectedIndex, watermarkSettings])
