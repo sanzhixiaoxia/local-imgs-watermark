@@ -20,8 +20,6 @@ const DEFAULT_SETTINGS: WatermarkSettings = {
   tileSpacingX: 1.5,
   tileSpacingY: 2,
   watermarkImage: null,
-  outputFormat: 'original',
-  outputWithWatermark: true,
 }
 
 const STORAGE_KEY = 'watermark-settings'

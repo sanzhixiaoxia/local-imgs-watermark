@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { Upload, RotateCcw } from 'lucide-react'
-import { WatermarkSettings, OutputFormat } from '../types'
+import { WatermarkSettings } from '../types'
 import SliderInput from './SliderInput'
 
 interface WatermarkConfigProps {
@@ -34,8 +34,6 @@ const DEFAULT_SETTINGS: WatermarkSettings = {
   tileSpacingX: 1.5,
   tileSpacingY: 2,
   watermarkImage: null,
-  outputFormat: 'original',
-  outputWithWatermark: true,
 }
 
 export default function WatermarkConfig({ settings, onChange }: WatermarkConfigProps) {
@@ -259,38 +257,6 @@ export default function WatermarkConfig({ settings, onChange }: WatermarkConfigP
             />
           </>
         )}
-
-        {/* 图片格式转换 */}
-        <div className="pt-3 mt-3 border-t border-gray-100 space-y-2">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">图片格式转换</label>
-            <select
-              value={settings.outputFormat}
-              onChange={(e) => handleChange('outputFormat', e.target.value as OutputFormat)}
-              className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary bg-white"
-            >
-              <option value="original">保持原格式</option>
-              <option value="png">PNG</option>
-              <option value="jpeg">JPEG</option>
-              <option value="webp">WebP</option>
-            </select>
-          </div>
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-medium text-gray-600">带水印</label>
-            <button
-              onClick={() => handleChange('outputWithWatermark', !settings.outputWithWatermark)}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                settings.outputWithWatermark ? 'bg-primary' : 'bg-gray-300'
-              }`}
-            >
-              <span
-                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-200 ${
-                  settings.outputWithWatermark ? 'translate-x-[18px]' : 'translate-x-[2px]'
-                }`}
-              />
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   )

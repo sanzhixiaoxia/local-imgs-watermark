@@ -18,7 +18,7 @@ export default function Preview({ images, selectedIndex, watermarkSettings }: Pr
   const { showToast } = useToast()
 
   const selectedImage = images[selectedIndex]
-  const outputMime = resolveOutputMime(watermarkSettings, selectedImage?.type || '')
+  const outputMime = resolveOutputMime(selectedImage?.type || '')
   const formatLabel: Record<string, string> = {
     'image/jpeg': 'JPEG',
     'image/webp': 'WebP',
@@ -77,7 +77,7 @@ export default function Preview({ images, selectedIndex, watermarkSettings }: Pr
       liveCtx.clearRect(0, 0, liveCanvas.width, liveCanvas.height)
 
       const selected = images[selectedIndex]
-      const outputMime = resolveOutputMime(watermarkSettings, selected?.type || '')
+      const outputMime = resolveOutputMime(selected?.type || '')
       // JPEG 不支持透明，预览时也铺白底，所见即所得
       if (outputMime === 'image/jpeg') {
         liveCtx.fillStyle = '#ffffff'
@@ -85,10 +85,8 @@ export default function Preview({ images, selectedIndex, watermarkSettings }: Pr
       }
 
       liveCtx.drawImage(img, 0, 0)
-      // 勾选了“带水印”才叠加水印
-      if (watermarkSettings.outputWithWatermark) {
-        await renderWatermark(liveCtx, liveCanvas.width, liveCanvas.height, watermarkSettings)
-      }
+      // 始终叠加水印
+      await renderWatermark(liveCtx, liveCanvas.width, liveCanvas.height, watermarkSettings)
     }
     img.src = URL.createObjectURL(images[selectedIndex])
   }, [images, selectedIndex, watermarkSettings])
@@ -96,38 +94,41 @@ export default function Preview({ images, selectedIndex, watermarkSettings }: Pr
   const handleCopy = async () => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const selectedImage = images[selectedIndex]
-    // 按设置决定导出格式（保持原格式 / 强制 png·jpeg·webp）
-    const outputMime = resolveOutputMime(watermarkSettings, selectedImage.type)
-    // 剪贴板仅支持 png / webp，jpeg 复制时降级为 png 位图
-    const clipboardMime = outputMime === 'image/jpeg' ? 'image/png' : outputMime
-    const downloadExt = extensionFromMime(outputMime)
-    const downloadName =
-      (selectedImage.name.replace(/\.[^./\\]+$/, '') || 'watermarked') + '.' + downloadExt
 
-    // 复制时统一用 clipboardMime 导出，保证 blob 类型与 ClipboardItem 的 key 一致
+    // 生成 PNG blob：PNG 是 Chrome / Edge / Firefox / Safari 等主流浏览器剪贴板均支持的格式
     const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, clipboardMime)
+      canvas.toBlob(resolve, 'image/png')
     )
     if (!blob) {
       showToast('复制失败，画布无法导出', 'error')
       return
     }
 
-    // 优先尝试写入剪贴板
-    if (navigator.clipboard && typeof ClipboardItem !== 'undefined') {
+    // 剪贴板写入图片需在安全上下文（https / localhost）且浏览器支持 ClipboardItem
+    const canClipboard =
+      typeof ClipboardItem !== 'undefined' &&
+      !!navigator.clipboard &&
+      typeof navigator.clipboard.write === 'function'
+
+    if (canClipboard && window.isSecureContext) {
       try {
-        await navigator.clipboard.write([new ClipboardItem({ [clipboardMime]: blob })])
+        // 部分浏览器（如 Safari）要求 ClipboardItem 的值为 Promise<Blob>
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': Promise.resolve(blob) }),
+        ])
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
         showToast('复制成功', 'success')
         return
       } catch {
-        // 剪贴板不可用（无权限/非安全上下文等），降级为下载
+        // 复制被拒绝（权限/聚焦等），降级为下载
       }
     }
 
-    // 降级：直接下载图片（按所选输出格式）
+    // 降级：直接下载图片（PNG 位图，含水印）
+    const selectedImage = images[selectedIndex]
+    const downloadName =
+      (selectedImage.name.replace(/\.[^./\\]+$/, '') || 'watermarked') + '.png'
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -136,7 +137,12 @@ export default function Preview({ images, selectedIndex, watermarkSettings }: Pr
     a.click()
     a.remove()
     URL.revokeObjectURL(url)
-    showToast('浏览器不支持复制图片，已为您下载图片', 'error')
+    showToast(
+      window.isSecureContext
+        ? '浏览器不支持复制图片，已为您下载图片'
+        : '当前环境不支持复制，已为您下载图片',
+      'error',
+    )
   }
 
   if (images.length === 0) {
