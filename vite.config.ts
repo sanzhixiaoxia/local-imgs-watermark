@@ -17,12 +17,12 @@ function createImageProxy(): Connect.NextHandleFunction {
       return
     }
 
-    // 上游微信图偶发连接抖动，失败时自动重试以消除偶发 500
+    // 上游微信图偶发连接抖动，失败时自动重试以消除偶发 500（单次 20s，共 3 次，最长 60s）
     let response: Response | null = null
     let lastErr: unknown = null
     for (let attempt = 0; attempt < 3; attempt++) {
       const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 15000)
+      const timeout = setTimeout(() => controller.abort(), 20000)
       try {
         response = await fetch(targetUrl, {
           signal: controller.signal,
