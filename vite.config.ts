@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import basicSsl from '@vitejs/plugin-basic-ssl'
 import path from 'path'
 import type { Connect } from 'vite'
 
@@ -63,6 +64,7 @@ function createImageProxy(): Connect.NextHandleFunction {
 
 export default defineConfig({
   plugins: [
+    basicSsl(),
     react(),
     {
       name: 'image-cors-proxy',
@@ -83,5 +85,9 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
+  },
+  server: {
+    host: true,
+    port: 3000,
   },
 })
