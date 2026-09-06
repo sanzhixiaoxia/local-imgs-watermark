@@ -2,6 +2,7 @@
 *.log
 dev.log
 /dist
+/release
 *.war
 *.zip
 
