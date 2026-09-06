@@ -34,7 +34,7 @@ npm install
 npm run dev
 ```
 
-启动后浏览器访问终端提示的地址（默认 `http://localhost:5173/local-imgs-watermark/`）。
+启动后浏览器访问终端提示的地址（默认 `http://localhost:3000/local-imgs-watermark/`）。
 
 ### 构建与预览
 
@@ -44,6 +44,52 @@ npm run build
 
 # 本地预览构建产物
 npm run preview
+```
+
+## 访问地址
+
+| 运行方式 | 地址 |
+| --- | --- |
+| 开发服务器 | `http://localhost:3000/local-imgs-watermark/`（`npm run dev`） |
+| 预览构建产物 | 由 `vite preview` 终端提示为准（默认 `http://localhost:5173/local-imgs-watermark/`） |
+| GitHub Pages 在线版 | `https://<你的用户名>.github.io/<仓库名>/local-imgs-watermark/` |
+
+> 说明：即使不部署后端，本地图片加水印功能也完全可用；仅**粘贴微信等跨域图片**在线上静态部署时需要后端提供图片代理（见下方说明）。
+
+## 桌面版（Windows exe）
+
+本项目已集成 Electron，可打包为 Windows 桌面应用，图片代理在桌面版中已内置，**包括粘贴微信图片在内的全部功能**均可离线使用。
+
+### 本地生成 exe
+
+在 **Windows 机器**上执行：
+
+```bash
+npm install
+npm run dist
+```
+
+产物输出到 `release/` 目录：
+- `LocalWatermark Setup.exe`：安装版（可选安装目录）
+- 如需便捷版，可按需配置 `portable` 目标
+
+### GitHub Actions 自动打包
+
+push `main` 分支后，`build-windows` 任务会在 Windows 上自动打包，完成的 exe 作为构建产物（artifact `local-watermark-windows`）上传：
+
+1. 打开仓库 **Actions** 页签
+2. 进入最新一次 workflow 运行
+3. 在底部 **Artifacts** 卡片下载 `local-watermark-windows`
+
+下载解压后运行其中的 `LocalWatermark Setup.exe` 即可安装使用。
+
+### 本地开发预览桌面版
+
+```bash
+# 先启动 vite dev server（另一终端）
+npm run dev
+# 再用 Electron 打开（加载 dev 服务器）
+npm run electron:dev
 ```
 
 ## 使用说明
